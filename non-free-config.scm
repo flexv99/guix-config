@@ -1,11 +1,14 @@
 (define-module (my packages)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (gnu packages linux)
+  #:use-module (gnu packages tls)
   #:use-module (guix build-system trivial)
-  #:use-module (gnu)
-  #:use-module (guix download)
   #:use-module (guix git-download)
-  #:use-module (guix packages))
+  #:use-module (guix packages)
+  #:use-module (guix download)
+  #:use-module (gnu services)
+  #:use-module (guix gexp))
+
 
 (define (linux-nonfree-urls version)
   "Return a list of URLs for Linux-Nonfree VERSION."
@@ -19,43 +22,34 @@
   (string-append (dirname (current-filename)) "/kernel.config"))
 
 (define-public linux-nonfree
+  (let* ((version "5.4.15"))
+    (package
+      (inherit linux-libre)
+      (name "linux-nonfree")
+      (version version)
+      (source (origin
+                (method url-fetch)
+                (uri (linux-nonfree-urls version))
+                (sha256
+                 (base32
+                  "1ccldlwj89qd22cl06706w7xzm8n69m6kg8ic0s5ns0ghlpj41v4"))))
+      (synopsis "Mainline Linux kernel, nonfree binary blobs included.")
+      (description "Linux is a kernel.")
+      (license license:gpl2)
+      (home-page "http://kernel.org/"))))
+
+(define-public linux-firmware-non-free
   (package
-    (inherit linux-libre)
-    (name "linux-nonfree")
-    (version "4.13.11")
+    (name "linux-firmware-non-free")
+    (version "1eb2408c6feacccd10b02a49214745f15d1c6fb7")
     (source (origin
-              (method url-fetch)
-              (uri (linux-nonfree-urls version))
+              (method git-fetch)
+              (uri (git-reference
+                    (url "git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git")
+                    (commit version)))
               (sha256
                (base32
-                "1vzl2i72c8iidhdc8a490npsbk7q7iphjqil4i9609disqw75gx4"))))
-    (native-inputs
-     `(("kconfig" ,kernel-config)
-       ,@(alist-delete "kconfig"
-                       (package-native-inputs linux-libre))))
-    (synopsis "Mainline Linux kernel, nonfree binary blobs included")
-    (description "Linux is a kernel.")
-    (license license:gpl2)              ;XXX with proprietary firmware
-    (home-page "https://kernel.org")))
-
-(define (linux-firmware-version) "9d40a17beaf271e6ad47a5e714a296100eef4692")
-(define (linux-firmware-source version)
-  (origin
-    (method git-fetch)
-    (uri (git-reference
-          (url (string-append "https://git.kernel.org/pub/scm/linux/kernel"
-                              "/git/firmware/linux-firmware.git"))
-          (commit version)))
-    (file-name (string-append "linux-firmware-" version "-checkout"))
-    (sha256
-     (base32
-      "099kll2n1zvps5qawnbm6c75khgn81j8ns0widiw0lnwm8s9q6ch"))))
-
-(define-public iwlwifi-firmware-nonfree
-  (package
-    (name "iwlwifi-firmware-nonfree")
-    (version (linux-firmware-version))
-    (source (linux-firmware-source version))
+                "0256p99bqwf1d1s6gqnzpjcdmg6skcp1jzz64sd1p29xxrf0pzfa"))))
     (build-system trivial-build-system)
     (arguments
      `(#:modules ((guix build utils))
@@ -64,19 +58,47 @@
                    (let ((source (assoc-ref %build-inputs "source"))
                          (fw-dir (string-append %output "/lib/firmware/")))
                      (mkdir-p fw-dir)
+                     (copy-recursively source fw-dir)
+                     #t))))
+
+    (home-page "")
+    (synopsis "Non-free firmware for Linux")
+    (description "Non-free firmware for Linux")
+    ;; FIXME: What license?
+    (license (license:non-copyleft "http://git.kernel.org/?p=linux/kernel/git/firmware/linux-firmware.git;a=blob_plain;f=LICENCE.radeon_firmware;hb=HEAD"))))
+
+(define-public iwlwifi-firmware-nonfree
+  (package
+    (name "iwlwifi-firmware-nonfree")
+    (version "65b1c68c63f974d72610db38dfae49861117cae2")
+    (source (origin
+              (method git-fetch)
+              (uri (git-reference
+                    (url "git://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git")
+                    (commit version)))
+              (sha256
+               (base32
+                "1anr7fblxfcrfrrgq98kzy64yrwygc2wdgi47skdmjxhi3wbrvxz"))))
+    (build-system trivial-build-system)
+    (arguments
+     `(#:modules ((guix build utils))
+       #:builder (begin
+                   (use-modules (guix build utils))
+                   (let ((source (assoc-ref %build-inputs "source"))
+                         (fw-dir (string-append %output "/lib/firmware")))
+                     (mkdir-p fw-dir)
                      (for-each (lambda (file)
                                  (copy-file file
-                                            (string-append fw-dir (basename file))))
-                               (find-files source
-                                           "iwlwifi-.*\\.ucode$|LICENSE\\.iwlwifi_firmware$"))
+                                            (string-append fw-dir "/"
+                                                           (basename file))))
+                               (find-files source "iwlwifi-.*\\.ucode$|LICENCE\\.iwlwifi_firmware$"))
                      #t))))
+
     (home-page "https://wireless.wiki.kernel.org/en/users/drivers/iwlwifi")
     (synopsis "Non-free firmware for Intel wifi chips")
-    (description "Non-free iwlwifi firmware")
-    (license (license:non-copyleft
-              "https://git.kernel.org/cgit/linux/kernel/git/firmware/linux-firmware.git/tree/LICENCE.iwlwifi_firmware?id=HEAD"))))
-
-
+    (description "Non-free firmware for Intel wifi chips")
+    ;; FIXME: What license?
+    (license (license:non-copyleft "http://git.kernel.org/?p=linux/kernel/git/firmware/linux-firmware.git;a=blob_plain;f=LICENCE.iwlwifi_firmware;hb=HEAD"))))
 
 (define %sysctl-activation-service
   (simple-service 'sysctl activation-service-type
