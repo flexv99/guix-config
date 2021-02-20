@@ -1,0 +1,14 @@
+* Linux Non-Free, to install intel wifi firmware
+#+Begin_src shell
+git clone https://github.com/wingo/guix-nonfree.git
+guix build -L /path/to/linux-nonfree linux-nonfree
+guix build -l /path/to/linux-nonfree iwlwifi-firmware-nonfree
+#+End_src
+* Install XMonad
+Dependencies:
+- gcc@7.5.0
+- ghc@8.6.5
+- xmonad@0.15
+- ghc-xmonad-contrib
+Do not recompile!
+after you created the .xmonad dir containing the files reboot and start a xmonad session
